@@ -1,4 +1,7 @@
+import zlib
+
 from ...utils.pylib import VTFLibV2
+from ....library.utils import Buffer, MemoryBuffer
 from ....logger import SLoggingManager
 
 log_manager = SLoggingManager()
@@ -18,3 +21,18 @@ def load_texture(file_object, hdr=False):
         del lib
 
     return None, 0, 0
+
+
+def load_texture_tth(header_file: Buffer, data_file: Buffer):
+    vtf_data = bytearray()
+    if header_file.read_ascii_string(3) != "TTH":
+        return None
+    header_file.seek(6)
+    entry_count = header_file.read_uint8()
+    header_file.skip(1)
+    header_size = header_file.read_uint32()
+    header_file.seek(16 + entry_count * 8 + 4)
+    vtf_data += header_file.read(header_size)
+    vtf_data += zlib.decompress(data_file.read())
+    memory_buffer = MemoryBuffer(vtf_data)
+    return load_texture(memory_buffer)

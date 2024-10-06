@@ -3,8 +3,11 @@ import numpy as np
 from ...shared.content_providers.content_manager import ContentManager
 from ...utils.thirdparty.equilib.cube2equi_numpy import run as convert_to_eq
 from ..vmt import VMT
-from . import load_texture
+from . import load_texture, load_texture_tth
+from ....logger import SLoggingManager
 
+log_manager = SLoggingManager()
+logger = log_manager.get_logger('Source1::VTF')
 
 def pad_to(im: np.ndarray, s_size: int):
     new = np.zeros((s_size, s_size, 4), im.dtype)
@@ -16,6 +19,16 @@ def pad_to(im: np.ndarray, s_size: int):
 class SkyboxException(Exception):
     pass
 
+
+def lookup_and_load_texture(content_manager: ContentManager, texture_path: str):
+    texture_file = content_manager.find_texture(texture_path)
+    if texture_file is not None:
+        return load_texture(texture_file)
+    texture_header_file = content_manager.find_file(texture_path, "materials", extension=".tth")
+    texture_data_file = content_manager.find_file(texture_path, "materials", extension=".ttz")
+    if texture_header_file is not None and texture_data_file is not None:
+        return load_texture_tth(texture_header_file, texture_data_file)
+    raise SkyboxException(f"Failed to find skybox texture {texture_path}")
 
 def convert_skybox_to_equiangular(skyname, width=1024):
     content_manager = ContentManager()
@@ -32,10 +45,7 @@ def convert_skybox_to_equiangular(skyname, width=1024):
         texture_path = material.get_string('$basetexture', None)
         if texture_path is None:
             raise SkyboxException('Missing $basetexture in skybox material')
-        texture_file = content_manager.find_texture(texture_path)
-        if texture_file is None:
-            raise SkyboxException(f'Failed to find skybox texture {texture_path}')
-        side, h, w = load_texture(texture_file)
+        side, h, w = lookup_and_load_texture(content_manager, texture_path)
         side = side.reshape((w, h, 4))
         max_s = max(max(side.shape), max_s)
         if side.shape[0] < max_s or side.shape[1] < max_s:
@@ -67,10 +77,7 @@ def convert_skybox_to_equiangular(skyname, width=1024):
                                                                        None)))
             if texture_path is None:
                 raise SkyboxException('Missing $basetexture in skybox material')
-            texture_file = content_manager.find_texture(texture_path)
-            if texture_file is None:
-                raise SkyboxException(f'Failed to find skybox texture {texture_path}')
-            side, h, w = load_texture(texture_file)
+            side, h, w = lookup_and_load_texture(content_manager, texture_path)
             side = side.reshape((w, h, 4))
             max_s = max(max(side.shape), max_s)
             if side.shape[0] < max_s or side.shape[1] < max_s:
